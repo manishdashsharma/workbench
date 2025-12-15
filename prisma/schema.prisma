@@ -7,6 +7,78 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  MANAGER
+  EMPLOYEE
+}
+
+enum TaskType {
+  FEATURE
+  BUG
+}
+
+enum Status {
+  PENDING
+  COMPLETED
+  REVIEWED
+}
+
+model User {
+  id            String          @id @default(cuid())
+  name          String
+  email         String          @unique
+  role          Role            @default(EMPLOYEE)
+  createdTasks  Task[]          @relation("CreatedBy")
+  assignedTasks Task[]          @relation("AssignedTo")
+  projects      ProjectMember[] 
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@map("users")
+}
+
+model Project {
+  id          String          @id @default(cuid())
+  name        String
+  description String?
+  tasks       Task[]
+  members     ProjectMember[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  role      String   @default("MEMBER")
+  joinedAt  DateTime @default(now())
+
+  @@unique([userId, projectId])
+  @@map("project_members")
+}
+
+model Task {
+  id           String   @id @default(cuid())
+  title        String
+  description  String?
+  type         TaskType
+  status       Status   @default(PENDING)
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdById  String
+  createdBy    User     @relation("CreatedBy", fields: [createdById], references: [id])
+  assignedToId String?
+  assignedTo   User?    @relation("AssignedTo", fields: [assignedToId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("tasks")
+}
 
 model HealthCheck {
   id        String   @id @default(cuid())
@@ -15,6 +87,6 @@ model HealthCheck {
   uptime    Float?
   memory    Json?
   version   String?
-  
+
   @@map("health_checks")
 }
