@@ -4,6 +4,7 @@ import app from './app.js';
 import config from './config/index.js';
 import { logger } from './shared/index.js';
 import { connectDatabases, disconnectDatabases } from './config/databases.js';
+import { initializeEmail } from './config/email.js';
 
 const PORT = config.port || 3000;
 
@@ -11,6 +12,8 @@ async function startServer() {
   try {
     logger.startup('Starting Workbench Server...');
     await connectDatabases();
+
+    initializeEmail();
 
     const server = app.listen(PORT, () => {
       logger.success(`Server running on port ${PORT}`);

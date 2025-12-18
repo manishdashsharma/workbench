@@ -40,6 +40,11 @@ const config = {
     key: process.env.RESPONSE_ENCRYPTION_KEY || 'workbench-default-32-char-key-1234',
     algorithm: 'aes-256-cbc',
   },
+
+  resend: {
+    apiKey: process.env.RESEND_API_KEY,
+    fromEmail: process.env.RESEND_FROM_EMAIL || 'noreply@workbench.com',
+  },
 };
 
 const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
@@ -48,8 +53,5 @@ for (const envVar of requiredEnvVars) {
     throw new Error(`Missing required environment variable: ${envVar}`);
   }
 }
-
-console.log(`Configuration loaded for environment: ${config.env}`);
-
 
 export default config;

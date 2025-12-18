@@ -1,0 +1,76 @@
+@baseUrl = http://localhost:5000/v1
+@accessToken =eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjbWpjMmpwODkwMDAwdWo2dnV6dHh4MzB5IiwiZW1haWwiOiJtZGFzaHNoYXJtYTk1QGdtYWlsLmNvbSIsInJvbGUiOiJFTVBMT1lFRSIsImlzQWN0aXZlIjp0cnVlLCJpYXQiOjE3NjYxMDA3ODQsImV4cCI6MTc2NjE4NzE4NH0.zSNXI7GI2ScXiwDYjL3lqfMYNImGLmE2RjqifJom19M
+@name="Manish Dash Sharma"
+@email="mdashsharma95@gmail.com"
+@password="newpassword123"
+
+@managerName="Jane Manager"
+@managerEmail="jane@example.com"
+@managerPassword="password123"
+
+### Health Check
+GET {{baseUrl}}/auth/health
+
+### Register - Employee
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": {{name}},
+  "email": {{email}},
+  "password": {{password}}
+}
+
+### Register - Manager
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": {{managerName}},
+  "email": {{managerEmail}},
+  "password": {{managerPassword}},
+  "role": "MANAGER"
+}
+
+### Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": {{email}},
+  "password": {{password}}
+}
+
+### Get Current User
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{accessToken}}
+
+### Get My Activities
+GET {{baseUrl}}/auth/me/activities?page=1&limit=20
+Authorization: Bearer {{accessToken}}
+
+### Get My Activities - Filter by Type
+GET {{baseUrl}}/auth/me/activities?page=1&limit=20&type=LOGIN
+Authorization: Bearer {{accessToken}}
+
+### Logout
+POST {{baseUrl}}/auth/logout
+Authorization: Bearer {{accessToken}}
+
+### Forgot Password
+POST {{baseUrl}}/auth/forgot-password
+Content-Type: application/json
+
+{
+  "email": {{email}}
+}
+
+### Reset Password
+POST {{baseUrl}}/auth/reset-password
+Content-Type: application/json
+
+{
+  "email": {{email}},
+  "tempPassword": "tsnzjvxo90fqqsgn",
+  "newPassword": "newpassword123"
+}

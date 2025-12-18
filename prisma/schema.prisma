@@ -23,16 +23,26 @@ enum Status {
   REVIEWED
 }
 
+enum ActivityType {
+  LOGIN
+  LOGOUT
+}
+
 model User {
-  id            String          @id @default(cuid())
-  name          String
-  email         String          @unique
-  role          Role            @default(EMPLOYEE)
-  createdTasks  Task[]          @relation("CreatedBy")
-  assignedTasks Task[]          @relation("AssignedTo")
-  projects      ProjectMember[] 
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  id                 String          @id @default(cuid())
+  name               String
+  email              String          @unique
+  password           String
+  role               Role            @default(EMPLOYEE)
+  isActive           Boolean         @default(false)
+  tempPassword       String?
+  tempPasswordExpiry DateTime?
+  createdTasks       Task[]          @relation("CreatedBy")
+  assignedTasks      Task[]          @relation("AssignedTo")
+  projects           ProjectMember[]
+  activities         UserActivity[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   @@map("users")
 }
@@ -89,4 +99,19 @@ model HealthCheck {
   version   String?
 
   @@map("health_checks")
+}
+
+model UserActivity {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      ActivityType
+  ipAddress String?
+  userAgent String?
+  timestamp DateTime     @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([timestamp])
+  @@map("user_activities")
 }

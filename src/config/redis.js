@@ -4,6 +4,8 @@ import { logger } from '../shared/index.js';
 
 let redisCluster;
 let redisClient;
+let redisPubClient;
+let redisSubClient;
 
 function initializeRedis() {
   if (redisCluster) {
@@ -12,7 +14,7 @@ function initializeRedis() {
 
   try {
     if (config.redis.clusterUrls.length > 1) {
-      const nodes = config.redis.clusterUrls.map((url) => {
+      const nodes = config.redis.clusterUrls.map(url => {
         const parsed = new URL(url);
         return {
           host: parsed.hostname,
@@ -40,7 +42,7 @@ function initializeRedis() {
         logger.info('Redis cluster connected successfully');
       });
 
-      redisCluster.on('error', (error) => {
+      redisCluster.on('error', error => {
         logger.error('Redis cluster error:', error);
       });
 
@@ -64,7 +66,7 @@ function initializeRedis() {
         logger.info('Redis connected successfully');
       });
 
-      redisClient.on('error', (error) => {
+      redisClient.on('error', error => {
         logger.error('Redis error:', error);
       });
 
@@ -91,6 +93,42 @@ function getRedisClient() {
     return client;
   }
   return redisClient;
+}
+
+function getRedisAdapterClients() {
+  if (!redisPubClient || !redisSubClient) {
+    try {
+      if (config.redis.clusterUrls.length > 0) {
+        const url = config.redis.clusterUrls[0];
+        redisPubClient = new Redis(url, {
+          password: config.redis.password,
+          connectTimeout: 10000,
+          lazyConnect: false,
+          maxRetriesPerRequest: 3,
+          retryDelayOnFailover: 100,
+        });
+        redisSubClient = new Redis(url, {
+          password: config.redis.password,
+          connectTimeout: 10000,
+          lazyConnect: false,
+          maxRetriesPerRequest: 3,
+          retryDelayOnFailover: 100,
+        });
+
+        redisPubClient.on('error', (error) => {
+          logger.error('Redis pub client error:', error);
+        });
+
+        redisSubClient.on('error', (error) => {
+          logger.error('Redis sub client error:', error);
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to create Redis adapter clients:', error);
+    }
+  }
+
+  return { pubClient: redisPubClient, subClient: redisSubClient };
 }
 
 class CacheManager {
@@ -274,6 +312,111 @@ class CacheManager {
       return {};
     }
   }
+
+  async deletePattern(pattern) {
+    if (!this.client) {
+      return false;
+    }
+
+    try {
+      const keys = await this.client.keys(pattern);
+      if (keys.length > 0) {
+        await this.client.del(...keys);
+        logger.info(`Deleted ${keys.length} keys matching pattern: ${pattern}`);
+      }
+      return true;
+    } catch (error) {
+      logger.error('Cache deletePattern error:', error);
+      return false;
+    }
+  }
+
+  async invalidateCache(keys, options = {}) {
+    const {
+      critical = true,
+      retries = 1,
+      requestId = null,
+      context = 'cache invalidation'
+    } = options;
+
+    const keysArray = Array.isArray(keys) ? keys : [keys];
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        await Promise.all(keysArray.map(key => this.del(key)));
+
+        if (attempt > 0) {
+          logger.info('Cache invalidation succeeded after retry', {
+            keys: keysArray,
+            attempt,
+            requestId,
+            context
+          });
+        }
+
+        return { success: true, keys: keysArray };
+      } catch (error) {
+        if (attempt < retries) {
+          logger.warn('Cache invalidation failed, retrying', {
+            keys: keysArray,
+            attempt,
+            error: error.message,
+            requestId,
+            context
+          });
+          await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+          continue;
+        }
+
+        if (critical) {
+          logger.error('CRITICAL: Cache invalidation failed after all retries', {
+            keys: keysArray,
+            attempts: attempt + 1,
+            error: error.message,
+            stack: error.stack,
+            requestId,
+            context
+          });
+        } else {
+          logger.warn('Cache invalidation failed', {
+            keys: keysArray,
+            error: error.message,
+            requestId,
+            context
+          });
+        }
+
+        return { success: false, keys: keysArray, error };
+      }
+    }
+
+    return { success: false, keys: keysArray, error: new Error('Max retries exceeded') };
+  }
+
+  async invalidateUserCache(userId, options = {}) {
+    return this.invalidateCache(`user:${userId}`, {
+      critical: true,
+      context: 'user cache invalidation',
+      ...options
+    });
+  }
+
+  async invalidateUserProfileCache(userId, options = {}) {
+    return this.invalidateCache(`user_profile:${userId}`, {
+      critical: true,
+      context: 'user profile cache invalidation',
+      ...options
+    });
+  }
+
+  async invalidateMultipleCaches(userIds, keyPrefix = 'user_profile', options = {}) {
+    const keys = userIds.map(id => `${keyPrefix}:${id}`);
+    return this.invalidateCache(keys, {
+      critical: true,
+      context: `multiple ${keyPrefix} cache invalidation`,
+      ...options
+    });
+  }
 }
 
 class SessionManager {
@@ -288,7 +431,7 @@ class SessionManager {
     }
 
     try {
-      const sessionId = `${userId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+      const sessionId = `${userId}:${Date.now()}:${Math.random().toString(36).substring(2, 11)}`;
       const key = this.prefix + sessionId;
 
       await this.client.setex(
@@ -384,7 +527,7 @@ class SessionManager {
       const sessions = await this.client.mget(keys);
       return sessions
         .filter(Boolean)
-        .map((session) => JSON.parse(session))
+        .map(session => JSON.parse(session))
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     } catch (error) {
       logger.error('Session get user sessions error:', error);
@@ -454,6 +597,7 @@ async function disconnectRedis() {
 export {
   initializeRedis,
   getRedisClient,
+  getRedisAdapterClients,
   CacheManager,
   SessionManager,
   checkRedisHealth,
