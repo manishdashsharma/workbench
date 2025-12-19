@@ -25,6 +25,8 @@ RUN npm ci --only=production
 COPY --chown=nodejs:nodejs . .
 RUN npx prisma generate
 
+RUN mkdir -p logs && chown -R nodejs:nodejs logs
+
 USER nodejs
 
 EXPOSE 5000
