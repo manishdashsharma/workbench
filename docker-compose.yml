@@ -64,7 +64,7 @@ services:
   workbench-server:
     build:
       context: .
-      dockerfile: Docker/Dockerfile
+      dockerfile: Dockerfile
       target: production
     container_name: workbench-server
     restart: unless-stopped
