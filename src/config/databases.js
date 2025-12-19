@@ -67,8 +67,13 @@ async function connectDatabases() {
     logger.success('PostgreSQL (write) connected');
 
     if (readDB !== writeDB) {
-      await readDB.$connect();
-      logger.success('PostgreSQL (read) connected');
+      try {
+        await readDB.$connect();
+        logger.success('PostgreSQL (read) connected');
+      } catch (readError) {
+        logger.warn(`⚠️  PostgreSQL (read) connection failed, falling back to write DB: ${readError.message}`);
+        readPrisma = null;
+      }
     }
 
     if (config.redis.clusterUrls.length > 0) {
