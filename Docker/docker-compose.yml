@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  postgres-primary:
+    image: postgres:16-alpine
+    container_name: workbench-postgres-primary
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_primary_data:/var/lib/postgresql/data
+    networks:
+      - workbench-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-read:
+    image: postgres:16-alpine
+    container_name: workbench-postgres-read
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: mydb
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_read_data:/var/lib/postgresql/data
+    networks:
+      - workbench-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: workbench-redis
+    command: redis-server --requirepass redis123
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - workbench-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  workbench-server:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile
+      target: production
+    container_name: workbench-server
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres123@postgres-primary:5432/mydb
+      DATABASE_READ_URL: postgresql://postgres:postgres123@postgres-read:5432/mydb
+      REDIS_CLUSTER_URLS: redis://:redis123@redis:6379
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      postgres-read:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - workbench-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_primary_data:
+    driver: local
+  postgres_read_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  workbench-network:
+    external: true
+    name: proxy-network
