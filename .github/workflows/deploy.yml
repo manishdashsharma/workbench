@@ -1,0 +1,135 @@
+name: Deploy to Production Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Production Server
+        env:
+          DEPLOY_PATH: /home/workbench
+          DEPLOY_HOST: ${{ secrets.SERVER_IP }}
+          DEPLOY_USER: ${{ secrets.SERVER_USER }}
+          GITHUB_USERNAME: ${{ github.repository_owner }}
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.DEPLOY_GITHUB_TOKEN }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
+        run: |
+          # Pass environment variables to the SSH session
+          ssh $DEPLOY_USER@$DEPLOY_HOST "
+            export DEPLOY_PATH='$DEPLOY_PATH'
+            export GITHUB_USERNAME='$GITHUB_USERNAME'
+            export GITHUB_REPO='$GITHUB_REPO'
+            export GITHUB_TOKEN='$GITHUB_TOKEN'
+            export DOMAIN='$DOMAIN'
+            export CERTBOT_EMAIL='$CERTBOT_EMAIL'
+
+            # Create directory if it doesn't exist
+            mkdir -p '$DEPLOY_PATH'
+
+            # Initialize git repository if it doesn't exist
+            cd '$DEPLOY_PATH'
+            if [ ! -d .git ]; then
+              git init
+              git remote add origin https://$GITHUB_USERNAME:$GITHUB_TOKEN@github.com/$GITHUB_REPO.git
+            else
+              git remote set-url origin https://$GITHUB_USERNAME:$GITHUB_TOKEN@github.com/$GITHUB_REPO.git
+            fi
+
+            # Fetch and reset to match remote
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Verify docker-compose.yml exists
+            if [ ! -f \"docker-compose.yml\" ]; then
+              echo '❌ Error: docker-compose.yml not found'
+              exit 1
+            fi
+
+            # Create .env file if it doesn't exist
+            if [ ! -f \".env\" ]; then
+              echo '⚠️ Warning: .env file not found, creating from .env.example'
+              if [ -f \".env.example\" ]; then
+                cp .env.example .env
+                echo '📝 Please update .env file with production values'
+              else
+                echo '❌ Error: .env.example not found'
+                exit 1
+              fi
+            fi
+
+            # SSL Certificate Setup with Certbot (optional, only if DOMAIN is set)
+            if [ ! -z \"$DOMAIN\" ] && [ ! -z \"$CERTBOT_EMAIL\" ]; then
+              echo '🔒 Checking/Updating SSL certificates...'
+              certbot certonly --standalone -d $DOMAIN --non-interactive --agree-tos -m $CERTBOT_EMAIL || { echo '⚠️ Certbot failed, continuing without SSL'; }
+            else
+              echo '⏭️ Skipping SSL setup (DOMAIN or CERTBOT_EMAIL not set)'
+            fi
+
+            # Stop existing containers
+            echo '🛑 Stopping existing containers...'
+            docker compose down || true
+
+            # Pull latest images (optional, if using pre-built images)
+            echo '📥 Pulling latest images...'
+            docker compose pull || true
+
+            # Build and deploy with Docker Compose
+            echo '🏗️ Building and deploying with Docker Compose...'
+            docker compose up -d --build || { echo '❌ Docker Compose failed'; exit 1; }
+
+            # Wait for services to be healthy
+            echo '⏳ Waiting for services to become healthy...'
+            timeout 120 sh -c 'until docker compose ps | grep -q \"healthy\"; do echo \"Waiting...\"; sleep 5; done' || { echo '⚠️ Services may not be fully healthy yet'; }
+
+            # Clean up old Docker resources
+            echo '🧹 Cleaning up Docker resources...'
+            docker system prune -f || { echo '⚠️ Docker prune failed'; }
+
+            echo '✨ Production Deployment completed successfully!'
+          "
+
+      - name: Restart Centralized Nginx (Optional)
+        continue-on-error: true
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "
+            echo '🔄 Restarting centralized nginx...'
+            docker restart centralized-nginx || { echo '⚠️ centralized-nginx not found or failed to restart'; }
+            echo '✅ Nginx restart attempted'
+          "
+
+      - name: Verify Deployment
+        run: |
+          echo "⏳ Waiting for services to start..."
+          sleep 30
+
+          # Check if services are responding
+          echo "🔍 Verifying service availability..."
+
+          # Try HTTP health check
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "
+            curl -f -s -S --retry 3 --retry-delay 5 http://localhost:5000/v1/health || {
+              echo '❌ Health check failed'
+              echo '📋 Container logs:'
+              docker compose -f ${{ env.DEPLOY_PATH || '/home/workbench-backend' }}/docker-compose.yml logs --tail=50 workbench-server
+              exit 1
+            }
+            echo '✅ Service is healthy!'
+          "
+
+          echo "✅ Deployment verification completed successfully!"
