@@ -1,0 +1,49 @@
+@baseUrl = http://localhost:5000/v1
+@accessToken =
+@projectId =
+@userId =
+
+### Create Project (Manager Only)
+POST {{baseUrl}}/projects
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Mobile App Development",
+  "description": "Develop iOS and Android applications"
+}
+
+### Get All Projects
+GET {{baseUrl}}/projects?page=1&limit=20
+Authorization: Bearer {{accessToken}}
+
+### Get Single Project
+GET {{baseUrl}}/projects/{{projectId}}
+Authorization: Bearer {{accessToken}}
+
+### Update Project (Manager Only)
+PUT {{baseUrl}}/projects/{{projectId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Mobile App Development - Updated",
+  "description": "Updated description"
+}
+
+### Delete Project (Manager Only)
+DELETE {{baseUrl}}/projects/{{projectId}}
+Authorization: Bearer {{accessToken}}
+
+### Add Member to Project (Manager Only)
+POST {{baseUrl}}/projects/{{projectId}}/members
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}"
+}
+
+### Remove Member from Project (Manager Only)
+DELETE {{baseUrl}}/projects/{{projectId}}/members/{{userId}}
+Authorization: Bearer {{accessToken}}

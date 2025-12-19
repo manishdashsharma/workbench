@@ -1,0 +1,36 @@
+@baseUrl = http://localhost:5000/v1
+@accessToken =
+@projectId =
+@employeeId =
+
+### Get Company Report (Manager Only)
+GET {{baseUrl}}/reports/company
+Authorization: Bearer {{accessToken}}
+
+### Get Company Report with Date Filter (Manager Only)
+GET {{baseUrl}}/reports/company?startDate=2025-12-01T00:00:00.000Z&endDate=2025-12-31T23:59:59.000Z
+Authorization: Bearer {{accessToken}}
+
+### Get Project Report (Manager Only)
+GET {{baseUrl}}/reports/project/{{projectId}}
+Authorization: Bearer {{accessToken}}
+
+### Get Project Report with Date Filter (Manager Only)
+GET {{baseUrl}}/reports/project/{{projectId}}?startDate=2025-12-01T00:00:00.000Z&endDate=2025-12-31T23:59:59.000Z
+Authorization: Bearer {{accessToken}}
+
+### Get Employee Report (Manager Only)
+GET {{baseUrl}}/reports/employee/{{employeeId}}
+Authorization: Bearer {{accessToken}}
+
+### Get Employee Report with Date Filter (Manager Only)
+GET {{baseUrl}}/reports/employee/{{employeeId}}?startDate=2025-12-01T00:00:00.000Z&endDate=2025-12-31T23:59:59.000Z
+Authorization: Bearer {{accessToken}}
+
+### Get My Report (Employee)
+GET {{baseUrl}}/reports/me
+Authorization: Bearer {{accessToken}}
+
+### Get My Report with Date Filter (Employee)
+GET {{baseUrl}}/reports/me?startDate=2025-12-01T00:00:00.000Z&endDate=2025-12-31T23:59:59.000Z
+Authorization: Bearer {{accessToken}}

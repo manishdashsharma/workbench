@@ -1,9 +1,9 @@
-import { getWriteDB, getRedisClient } from '../../config/databases.js';
+import { getPrisma, getRedisClient } from '../../config/databases.js';
 import { httpError, responseMessage } from '../utils/response.js';
 import { verifyAccessToken } from '../services/auth/jwt.js';
 import logger from '../utils/logger.js';
 
-const prisma = getWriteDB();
+const prisma = getPrisma();
 
 export const authenticate = async (req, res, next) => {
   try {
@@ -60,6 +60,7 @@ export const authenticate = async (req, res, next) => {
         email: true,
         role: true,
         isActive: true,
+        companyId: true,
       },
     });
 
@@ -73,6 +74,7 @@ export const authenticate = async (req, res, next) => {
       email: user.email,
       role: user.role,
       isActive: user.isActive,
+      companyId: user.companyId,
     };
 
     try {
@@ -135,6 +137,7 @@ export const optionalAuth = async (req, res, next) => {
           email: true,
           role: true,
           isActive: true,
+          companyId: true,
         },
       });
 
@@ -145,6 +148,7 @@ export const optionalAuth = async (req, res, next) => {
           email: user.email,
           role: user.role,
           isActive: user.isActive,
+          companyId: user.companyId,
         };
 
         try {

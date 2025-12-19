@@ -5,6 +5,7 @@ import config from './config/index.js';
 import { logger } from './shared/index.js';
 import { connectDatabases, disconnectDatabases } from './config/databases.js';
 import { initializeEmail } from './config/email.js';
+import { startCronJobs } from './jobs/scheduler.js';
 
 const PORT = config.port || 3000;
 
@@ -14,6 +15,8 @@ async function startServer() {
     await connectDatabases();
 
     initializeEmail();
+
+    startCronJobs();
 
     const server = app.listen(PORT, () => {
       logger.success(`Server running on port ${PORT}`);

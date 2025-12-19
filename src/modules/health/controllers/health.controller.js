@@ -53,7 +53,7 @@ const detailedHealthCheck = asyncHandler(async (req, res) => {
   };
 
   const hasErrors = dbHealth.errors && dbHealth.errors.length > 0;
-  const dbConnected = dbHealth.postgresql.write && dbHealth.postgresql.read;
+  const dbConnected = dbHealth.postgresql.connected;
 
   if (hasErrors || !dbConnected) {
     healthData.status = 'degraded';
@@ -72,7 +72,7 @@ const detailedHealthCheck = asyncHandler(async (req, res) => {
 const readyCheck = asyncHandler(async (req, res) => {
   const dbHealth = await checkDatabaseHealth();
 
-  const isReady = dbHealth.postgresql.write && dbHealth.postgresql.read;
+  const isReady = dbHealth.postgresql.connected;
 
   if (!isReady) {
     return httpError(req, res, new Error('Service is not ready'), 503);
@@ -113,7 +113,7 @@ const fullSystemStatus = asyncHandler(async (req, res) => {
     const cpuUsage = process.cpuUsage();
 
     const hasDbErrors = dbHealth.errors && dbHealth.errors.length > 0;
-    const dbConnected = dbHealth.postgresql.write && dbHealth.postgresql.read;
+    const dbConnected = dbHealth.postgresql.connected;
     const redisConnected = dbHealth.redis.connected;
 
     let systemStatus = 'healthy';

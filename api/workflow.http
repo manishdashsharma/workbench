@@ -1,0 +1,144 @@
+@baseUrl = http://localhost:5000/v1
+
+### STEP 1: Register Manager (Create Company)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "John Manager",
+  "email": "manager@workbench.com",
+  "password": "password123",
+  "companyName": "Tech Innovations",
+  "companyImage": "https://example.com/logo.png"
+}
+
+### STEP 2: Login as Manager
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "manager@workbench.com",
+  "password": "password123"
+}
+
+### Save the accessToken from response above
+@managerToken =
+
+### STEP 3: Get Company Details
+GET {{baseUrl}}/auth/company
+Authorization: Bearer {{managerToken}}
+
+### Save the companyCode from response (e.g., COMP-01)
+@companyCode = COMP-01
+
+### STEP 4: Register Employee (Join Company)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Jane Employee",
+  "email": "employee@workbench.com",
+  "password": "password123",
+  "companyCode": "{{companyCode}}"
+}
+
+### STEP 5: Login as Employee
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "employee@workbench.com",
+  "password": "password123"
+}
+
+### Save the accessToken from employee response
+@employeeToken =
+@employeeId =
+
+### STEP 6: Manager Creates a Project
+POST {{baseUrl}}/projects
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "name": "Mobile App Development",
+  "description": "Develop cross-platform mobile application"
+}
+
+### Save projectId from response
+@projectId =
+
+### STEP 7: Manager Adds Employee to Project
+POST {{baseUrl}}/projects/{{projectId}}/members
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "userId": "{{employeeId}}"
+}
+
+### STEP 8: Manager Creates a Task
+POST {{baseUrl}}/tasks
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "title": "Implement User Authentication",
+  "description": "Add JWT-based authentication with login and signup",
+  "type": "FEATURE",
+  "projectId": "{{projectId}}",
+  "assignedToId": "{{employeeId}}",
+  "startTime": "2025-12-19T10:00:00.000Z",
+  "endTime": "2025-12-19T12:00:00.000Z"
+}
+
+### Save taskId from response
+@taskId =
+
+### STEP 9: Employee Views Their Tasks
+GET {{baseUrl}}/tasks?status=PENDING
+Authorization: Bearer {{employeeToken}}
+
+### STEP 10: Employee Starts the Task (Records Start Time)
+POST {{baseUrl}}/tasks/{{taskId}}/start
+Authorization: Bearer {{employeeToken}}
+
+### STEP 11: Employee Completes the Task (Records Completion Time)
+POST {{baseUrl}}/tasks/{{taskId}}/complete
+Authorization: Bearer {{employeeToken}}
+
+### STEP 12: Manager Reviews Completed Task
+POST {{baseUrl}}/tasks/{{taskId}}/review
+Authorization: Bearer {{managerToken}}
+
+### STEP 13: Manager Views Company Report
+GET {{baseUrl}}/reports/company
+Authorization: Bearer {{managerToken}}
+
+### STEP 14: Manager Views Project Report
+GET {{baseUrl}}/reports/project/{{projectId}}
+Authorization: Bearer {{managerToken}}
+
+### STEP 15: Manager Views Employee Performance
+GET {{baseUrl}}/reports/employee/{{employeeId}}
+Authorization: Bearer {{managerToken}}
+
+### STEP 16: Employee Views Their Own Report
+GET {{baseUrl}}/reports/me
+Authorization: Bearer {{employeeToken}}
+
+### STEP 17: Manager Views Company Members
+GET {{baseUrl}}/auth/company/members?page=1&limit=20
+Authorization: Bearer {{managerToken}}
+
+### STEP 18: Employee Views Their Activities
+GET {{baseUrl}}/auth/me/activities?page=1&limit=20
+Authorization: Bearer {{employeeToken}}
+
+### STEP 19: Employee Logout
+POST {{baseUrl}}/auth/logout
+Authorization: Bearer {{employeeToken}}
+
+### STEP 20: Manager Logout
+POST {{baseUrl}}/auth/logout
+Authorization: Bearer {{managerToken}}

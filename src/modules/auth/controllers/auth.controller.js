@@ -1,11 +1,11 @@
-import { getWriteDB } from '../../../config/databases.js';
+import { getPrisma } from '../../../config/databases.js';
 import { CacheManager } from '../../../config/redis.js';
 import { sendEmail } from '../../../config/email.js';
 import config from '../../../config/index.js';
 import { httpResponse, responseMessage, httpError, asyncHandler, hashPassword, logger, comparePassword, generateTokens, forgotPasswordTemplate, passwordResetSuccessTemplate } from '../../../shared/index.js';
 import { EUserRoles } from '../constants/auth.contant.js';
 
-const prisma = getWriteDB();
+const prisma = getPrisma();
 const cache = new CacheManager();
 
 const health = asyncHandler(async (req, res) => {
@@ -18,7 +18,7 @@ const health = asyncHandler(async (req, res) => {
 });
 
 const register = asyncHandler(async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, companyName, companyImage, companyCode } = req.body;
 
   const existingUser = await prisma.user.findUnique({
     where: { email }
@@ -28,24 +28,78 @@ const register = asyncHandler(async (req, res) => {
     return httpError(req, res, new Error('User already exists with this email'), 400);
   }
 
+  if (!companyName && !companyCode) {
+    return httpError(req, res, new Error('Either companyName or companyCode is required'), 400);
+  }
+
+  if (companyName && companyCode) {
+    return httpError(req, res, new Error('Cannot provide both companyName and companyCode'), 400);
+  }
+
   const hashedPassword = await hashPassword(password);
+
+  let userCompanyId;
+  let userRole;
+  let createdCompanyCode;
+
+  if (companyName) {
+    const company = await prisma.company.create({
+      data: {
+        name: companyName,
+        image: companyImage || null,
+        code: '',
+      }
+    });
+
+    const companyCode = `COMP-${String(company.sequence).padStart(2, '0')}`;
+
+    const updatedCompany = await prisma.company.update({
+      where: { id: company.id },
+      data: { code: companyCode }
+    });
+
+    userCompanyId = updatedCompany.id;
+    createdCompanyCode = updatedCompany.code;
+    userRole = EUserRoles.MANAGER;
+  } else {
+    const company = await prisma.company.findUnique({
+      where: { code: companyCode }
+    });
+
+    if (!company) {
+      return httpError(req, res, new Error('Company not found with this code'), 404);
+    }
+
+    userCompanyId = company.id;
+    createdCompanyCode = company.code;
+    userRole = EUserRoles.EMPLOYEE;
+  }
 
   const newUser = await prisma.user.create({
     data: {
       name,
       email,
       password: hashedPassword,
-      role: role || EUserRoles.EMPLOYEE
+      role: userRole,
+      companyId: userCompanyId,
     }
   });
 
   logger.info('User registered successfully', {
     userId: newUser.id,
     email: newUser.email,
+    companyId: userCompanyId,
+    companyCode: createdCompanyCode,
+    role: userRole,
     requestId: req.requestId,
   });
 
-  return httpResponse(req, res, 201, responseMessage.custom('User registered successfully'));
+  return httpResponse(req, res, 201, responseMessage.custom('User registered successfully'), {
+    userId: newUser.id,
+    email: newUser.email,
+    role: userRole,
+    companyCode: createdCompanyCode,
+  });
 });
 
 const login = asyncHandler(async (req, res) => {
@@ -58,7 +112,8 @@ const login = asyncHandler(async (req, res) => {
       name: true,
       email: true,
       role: true,
-      password: true
+      password: true,
+      companyId: true,
     }
   });
 
@@ -95,7 +150,8 @@ const login = asyncHandler(async (req, res) => {
     userId: user.id,
     email: user.email,
     role: user.role,
-    isActive: true
+    isActive: true,
+    companyId: user.companyId,
   };
 
   const { accessToken } = generateTokens(tokenPayload);
@@ -169,7 +225,8 @@ const getMe = asyncHandler(async (req, res) => {
     name: req.user.name,
     email: req.user.email,
     role: req.user.role,
-    isActive: req.user.isActive
+    isActive: req.user.isActive,
+    companyId: req.user.companyId,
   });
 });
 
@@ -309,6 +366,100 @@ const resetPassword = asyncHandler(async (req, res) => {
   return httpResponse(req, res, 200, responseMessage.custom('Password reset successful'));
 });
 
+const getCompany = asyncHandler(async (req, res) => {
+  const company = await prisma.company.findUnique({
+    where: { id: req.user.companyId },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      image: true,
+      createdAt: true,
+      updatedAt: true,
+      _count: {
+        select: {
+          users: true,
+          projects: true,
+        }
+      }
+    }
+  });
+
+  if (!company) {
+    return httpError(req, res, new Error('Company not found'), 404);
+  }
+
+  return httpResponse(req, res, 200, responseMessage.custom('Company details fetched successfully'), company);
+});
+
+const updateCompany = asyncHandler(async (req, res) => {
+  if (req.user.role !== EUserRoles.MANAGER) {
+    return httpError(req, res, new Error('Only managers can update company details'), 403);
+  }
+
+  const { name, image } = req.body;
+
+  const updatedCompany = await prisma.company.update({
+    where: { id: req.user.companyId },
+    data: {
+      ...(name && { name }),
+      ...(image && { image }),
+    },
+    select: {
+      id: true,
+      name: true,
+      image: true,
+      updatedAt: true,
+    }
+  });
+
+  logger.info('Company updated', {
+    companyId: updatedCompany.id,
+    userId: req.user.id,
+    requestId: req.requestId,
+  });
+
+  return httpResponse(req, res, 200, responseMessage.custom('Company updated successfully'), updatedCompany);
+});
+
+const getCompanyMembers = asyncHandler(async (req, res) => {
+  if (req.user.role !== EUserRoles.MANAGER) {
+    return httpError(req, res, new Error('Only managers can view company members'), 403);
+  }
+
+  const { page = 1, limit = 20 } = req.query;
+
+  const where = { companyId: req.user.companyId };
+
+  const [members, total] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: parseInt(limit, 10),
+      skip: (parseInt(page, 10) - 1) * parseInt(limit, 10),
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+      }
+    }),
+    prisma.user.count({ where })
+  ]);
+
+  return httpResponse(req, res, 200, responseMessage.custom('Company members fetched successfully'), {
+    members,
+    pagination: {
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+      total,
+      totalPages: Math.ceil(total / parseInt(limit, 10))
+    }
+  });
+});
+
 export {
   health,
   register,
@@ -317,5 +468,8 @@ export {
   getMe,
   getMyActivities,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  getCompany,
+  updateCompany,
+  getCompanyMembers,
 };

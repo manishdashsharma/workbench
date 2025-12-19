@@ -4,7 +4,6 @@ import config from './index.js';
 import { logger } from '../shared/index.js';
 
 let prisma;
-let readPrisma;
 let redisCluster;
 
 function initializePrisma() {
@@ -22,21 +21,7 @@ function initializePrisma() {
     });
   }
 
-  if (!readPrisma && config.database.readUrl) {
-    readPrisma = new PrismaClient({
-      datasources: {
-        db: {
-          url: config.database.readUrl,
-        },
-      },
-      log:
-        config.env === 'development'
-          ? ['query', 'info', 'warn', 'error']
-          : ['error'],
-    });
-  }
-
-  return { prisma, readPrisma: readPrisma || prisma };
+  return prisma;
 }
 
 function initializeRedis() {
@@ -62,19 +47,9 @@ async function connectDatabases() {
   try {
     logger.info('🔌 Connecting to databases...');
 
-    const { prisma: writeDB, readPrisma: readDB } = initializePrisma();
-    await writeDB.$connect();
-    logger.success('PostgreSQL (write) connected');
-
-    if (readDB !== writeDB) {
-      try {
-        await readDB.$connect();
-        logger.success('PostgreSQL (read) connected');
-      } catch (readError) {
-        logger.warn(`⚠️  PostgreSQL (read) connection failed, falling back to write DB: ${readError.message}`);
-        readPrisma = null;
-      }
-    }
+    const db = initializePrisma();
+    await db.$connect();
+    logger.success('PostgreSQL connected');
 
     if (config.redis.clusterUrls.length > 0) {
       const redis = initializeRedis();
@@ -89,20 +64,11 @@ async function connectDatabases() {
   }
 }
 
-function getWriteDB() {
+function getPrisma() {
   if (!prisma) {
-    const { prisma: writeDB } = initializePrisma();
-    return writeDB;
+    return initializePrisma();
   }
   return prisma;
-}
-
-function getReadDB() {
-  if (!readPrisma) {
-    const { readPrisma: readDB } = initializePrisma();
-    return readDB;
-  }
-  return readPrisma;
 }
 
 function getRedisClient() {
@@ -115,25 +81,18 @@ function getRedisClient() {
 async function checkDatabaseHealth() {
   const health = {
     postgresql: {
-      write: false,
-      read: false,
-      writeLatency: null,
-      readLatency: null,
+      connected: false,
+      latency: null,
     },
     redis: { connected: false, latency: null },
     errors: [],
   };
 
   try {
-    const writeStart = Date.now();
-    await getWriteDB().$queryRaw`SELECT 1`;
-    health.postgresql.write = true;
-    health.postgresql.writeLatency = Date.now() - writeStart;
-
-    const readStart = Date.now();
-    await getReadDB().$queryRaw`SELECT 1`;
-    health.postgresql.read = true;
-    health.postgresql.readLatency = Date.now() - readStart;
+    const dbStart = Date.now();
+    await getPrisma().$queryRaw`SELECT 1`;
+    health.postgresql.connected = true;
+    health.postgresql.latency = Date.now() - dbStart;
   } catch (error) {
     health.errors.push(`PostgreSQL: ${error.message}`);
   }
@@ -158,11 +117,7 @@ async function disconnectDatabases() {
 
     if (prisma) {
       await prisma.$disconnect();
-      logger.info('✅ PostgreSQL (write) disconnected');
-    }
-    if (readPrisma) {
-      await readPrisma.$disconnect();
-      logger.info('✅ PostgreSQL (read) disconnected');
+      logger.info('✅ PostgreSQL disconnected');
     }
     if (redisCluster) {
       redisCluster.disconnect();
@@ -178,8 +133,7 @@ async function disconnectDatabases() {
 export {
   connectDatabases,
   disconnectDatabases,
-  getWriteDB,
-  getReadDB,
+  getPrisma,
   getRedisClient,
   checkDatabaseHealth,
 };

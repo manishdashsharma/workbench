@@ -1,0 +1,99 @@
+@baseUrl = http://localhost:5000/v1
+@accessToken =
+@projectId =
+@taskId =
+@employeeId =
+
+### Create Task (Manager Only)
+POST {{baseUrl}}/tasks
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "Implement User Authentication",
+  "description": "Add JWT-based authentication with login and signup",
+  "type": "FEATURE",
+  "projectId": "{{projectId}}",
+  "assignedToId": "{{employeeId}}",
+  "startTime": "2025-12-19T10:00:00.000Z",
+  "endTime": "2025-12-19T12:00:00.000Z"
+}
+
+### Create Bug Fix Task
+POST {{baseUrl}}/tasks
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "Fix Login Button Not Working",
+  "description": "Login button is not responding on iOS devices",
+  "type": "BUG",
+  "projectId": "{{projectId}}",
+  "assignedToId": "{{employeeId}}",
+  "startTime": "2025-12-19T14:00:00.000Z",
+  "endTime": "2025-12-19T15:30:00.000Z"
+}
+
+### Get All Tasks
+GET {{baseUrl}}/tasks?page=1&limit=20
+Authorization: Bearer {{accessToken}}
+
+### Get Tasks by Project
+GET {{baseUrl}}/tasks?projectId={{projectId}}&page=1&limit=20
+Authorization: Bearer {{accessToken}}
+
+### Get Tasks by Status
+GET {{baseUrl}}/tasks?status=PENDING&page=1&limit=20
+Authorization: Bearer {{accessToken}}
+
+### Get Tasks - Pending
+GET {{baseUrl}}/tasks?status=PENDING&projectId={{projectId}}
+Authorization: Bearer {{accessToken}}
+
+### Get Tasks - Completed
+GET {{baseUrl}}/tasks?status=COMPLETED&projectId={{projectId}}
+Authorization: Bearer {{accessToken}}
+
+### Get Single Task
+GET {{baseUrl}}/tasks/{{taskId}}
+Authorization: Bearer {{accessToken}}
+
+### Update Task (Manager Only)
+PUT {{baseUrl}}/tasks/{{taskId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "Updated Task Title",
+  "description": "Updated description",
+  "startTime": "2025-12-19T11:00:00.000Z",
+  "endTime": "2025-12-19T13:00:00.000Z"
+}
+
+### Delete Task (Manager Only)
+DELETE {{baseUrl}}/tasks/{{taskId}}
+Authorization: Bearer {{accessToken}}
+
+### Start Task (Employee Only)
+POST {{baseUrl}}/tasks/{{taskId}}/start
+Authorization: Bearer {{accessToken}}
+
+### Complete Task (Employee Only)
+POST {{baseUrl}}/tasks/{{taskId}}/complete
+Authorization: Bearer {{accessToken}}
+
+### Review Task (Manager Only)
+POST {{baseUrl}}/tasks/{{taskId}}/review
+Authorization: Bearer {{accessToken}}
+
+### Carry Forward Incomplete Tasks (Manager Only)
+POST {{baseUrl}}/tasks/carry-forward
+Authorization: Bearer {{accessToken}}
+
+### Get Carried Forward Tasks
+GET {{baseUrl}}/tasks/carried-forward?page=1&limit=20
+Authorization: Bearer {{accessToken}}
+
+### Get Carried Forward Tasks by Project
+GET {{baseUrl}}/tasks/carried-forward?projectId={{projectId}}&page=1&limit=20
+Authorization: Bearer {{accessToken}}

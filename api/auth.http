@@ -1,35 +1,39 @@
 @baseUrl = http://localhost:5000/v1
-@accessToken =eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjbWpjMmpwODkwMDAwdWo2dnV6dHh4MzB5IiwiZW1haWwiOiJtZGFzaHNoYXJtYTk1QGdtYWlsLmNvbSIsInJvbGUiOiJFTVBMT1lFRSIsImlzQWN0aXZlIjp0cnVlLCJpYXQiOjE3NjYxMDA3ODQsImV4cCI6MTc2NjE4NzE4NH0.zSNXI7GI2ScXiwDYjL3lqfMYNImGLmE2RjqifJom19M
+@accessToken =
 @name="Manish Dash Sharma"
 @email="mdashsharma95@gmail.com"
 @password="newpassword123"
+@companyName="Workbench Inc"
 
-@managerName="Jane Manager"
-@managerEmail="jane@example.com"
-@managerPassword="password123"
+@employeeName="Jane Employee"
+@employeeEmail="jane@example.com"
+@employeePassword="password123"
+@companyCode="COMP-01"
 
 ### Health Check
 GET {{baseUrl}}/auth/health
 
-### Register - Employee
+### Register - Create Company (Manager)
 POST {{baseUrl}}/auth/register
 Content-Type: application/json
 
 {
   "name": {{name}},
   "email": {{email}},
-  "password": {{password}}
+  "password": {{password}},
+  "companyName": {{companyName}},
+  "companyImage": "https://example.com/logo.png"
 }
 
-### Register - Manager
+### Register - Join Company (Employee)
 POST {{baseUrl}}/auth/register
 Content-Type: application/json
 
 {
-  "name": {{managerName}},
-  "email": {{managerEmail}},
-  "password": {{managerPassword}},
-  "role": "MANAGER"
+  "name": {{employeeName}},
+  "email": {{employeeEmail}},
+  "password": {{employeePassword}},
+  "companyCode": {{companyCode}}
 }
 
 ### Login
@@ -74,3 +78,21 @@ Content-Type: application/json
   "tempPassword": "tsnzjvxo90fqqsgn",
   "newPassword": "newpassword123"
 }
+
+### Get Company Details
+GET {{baseUrl}}/auth/company
+Authorization: Bearer {{accessToken}}
+
+### Update Company (Manager Only)
+PUT {{baseUrl}}/auth/company
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Workbench Inc - Updated",
+  "image": "https://example.com/new-logo.png"
+}
+
+### Get Company Members (Manager Only)
+GET {{baseUrl}}/auth/company/members?page=1&limit=20
+Authorization: Bearer {{accessToken}}

@@ -1,7 +1,7 @@
-import { getWriteDB } from '../../../config/databases.js';
+import { getPrisma } from '../../../config/databases.js';
 import { logger } from '../../../shared/index.js';
 
-const prisma = getWriteDB();
+const prisma = getPrisma();
 
 export const exampleService = async (data) => {
   try {
